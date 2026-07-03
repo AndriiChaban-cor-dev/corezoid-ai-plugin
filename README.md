@@ -16,6 +16,8 @@ The plugin bundles a Go MCP server that exposes Corezoid operations as MCP tools
 | `corezoid-edit`                | "edit", "modify", "update" a process     | Modifying existing `.conv.json` files             |
 | `corezoid-review`              | "review", "audit", "check" a process     | Analysis, dead code, best-practice violations     |
 | `corezoid-project-review`      | "review project", "audit folder"         | Cross-process audit of an entire folder           |
+| `corezoid-stage-scan`          | "scan stage", "check stage before merge", "why does the merge fail" | Offline pre-merge validation of exported stage `.zip`s: non-active/empty processes, broken node links, broken/inactive `conv_id` refs |
+| `corezoid-index`               | "index project", "build project index", "who calls process X" | Build/refresh `.corezoid/project-map.json` — persistent call graph, env-var usage, config-reference task contents, security hotspots |
 | `corezoid-dashboard-manager`   | "create dashboard", "add chart", "visualize metrics" | Dashboards, charts, node metrics, real-time monitoring |
 | `corezoid-process-tech-writer` | "document", "write docs", "describe process" | Markdown docs + enriched JSON with node descriptions |
 
@@ -189,17 +191,30 @@ validation errors, and summarize what each process does.
 | `list-workspaces`   | List available workspaces and stages               |
 | `list-stages`       | List stages in a workspace                         |
 | `list-projects`     | List folders and processes in a stage              |
+| `create-project`    | Create a new project (with optional stages) in a workspace |
+| `modify-project`    | Update a project's title, short_name and/or description |
+| `delete-project`    | Move a project to the recycle bin (Trash)          |
+| `show-project`      | Show a project's stages and parent folder          |
 | `pull-folder`       | Export an entire folder/stage to local files       |
 | `pull-process`      | Export a single process to a `.conv.json` file     |
 | `push-process`      | Validate and deploy a `.conv.json` to Corezoid     |
 | `lint-process`      | Validate process structure locally (no API call)   |
+| `build-project-index` | Build/refresh `.corezoid/project-map.json`, `QUERIES.md`, and CLAUDE.md auto-block for the pulled project (no API call). Pass `mode="check"` to detect staleness without rebuilding |
+| `describe-process`  | Resolve a process identifier (conv_id/alias/title) against the project index and return path + calls_in count + staleness in one call |
 | `run-task`          | Send a task to a deployed process                  |
 | `list-node-tasks`   | List tasks currently sitting in a node             |
 | `list-task-history` | Show task execution history                        |
+| `get-node-stat`     | Return time-series in/out statistics for a node   |
 | `delete-task`       | Remove a task from a node                          |
 | `modify-task`       | Update task parameters                             |
 | `create-process`    | Create a new empty process in a folder             |
+| `create-state-diagram` | Create a new empty state diagram (conv_type "state") in a folder |
 | `create-folder`     | Create a new subfolder                             |
+| `show-folder`       | Show folder metadata (title, kind, parent)         |
+| `list-folders`      | List immediate children of a folder (no disk I/O)  |
+| `modify-folder`     | Rename a folder or update its description          |
+| `delete-folder`     | Move a folder to the recycle bin                   |
+| `delete-process`    | Move a process or state diagram to the recycle bin |
 | `create-alias`      | Create a short alias for a process                 |
 | `create-variable`   | Create a Corezoid environment variable             |
 | `create-dashboard`  | Create a new dashboard for visualizing node metrics |
@@ -208,6 +223,43 @@ validation errors, and summarize what each process does.
 | `modify-chart`      | Modify an existing chart (full series replace)     |
 | `get-chart`         | Get a single chart with its series data            |
 | `set-dashboard-layout` | Save chart positions on a dashboard grid        |
+| `share-object`      | Grant or revoke access on a process/folder/stage/project for a user, API key or group (use privs="none" to revoke) |
+| `list-shares`       | List principals with access to a shared object     |
+| `create-group`      | Create a new user group (optional description)     |
+| `modify-group`      | Rename a group or update its description           |
+| `list-group-objects`| List processes currently shared with a group       |
+| `delete-group`      | Delete a user group (refuses by default if shares active; force=true to override) |
+| `add-to-group`      | Add a user or API key to a group                   |
+| `remove-from-group` | Remove a user or API key from a group              |
+| `list-groups`       | List user groups in the workspace                  |
+| `create-api-key`    | Create a new API key (secret written to ~/.corezoid/api-keys/, never printed in chat) |
+| `modify-api-key`    | Rename or re-describe an API key                   |
+| `delete-api-key`    | Delete an API key (invalidates secret immediately) |
+| `list-api-keys`     | List API keys in the workspace                     |
+| `find-principal`    | Resolve user / group / API-key name to obj_id      |
+| `invite-user`       | Invite an external email and share an object in one call |
+| `send-feedback`     | Submit feedback about plugin behavior (returns ticket id) |
+
+## Feedback
+
+When the plugin does something unexpected, the `corezoid-feedback` skill guides you through collecting a description of the problem and sends it to the Corezoid team via the `send-feedback` MCP tool.
+
+**Privacy guarantees:**
+
+- Feedback is sent **only after your explicit confirmation**. Nothing is sent automatically.
+- All fields are scanned for tokens, API keys, JWTs, and long hex secrets before transmission — any matches are replaced with `[REDACTED]`.
+- To disable feedback entirely (e.g. in corporate environments), set `COREZOID_FEEDBACK_DISABLED=1`.
+
+**Telemetry environment variables:**
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `COREZOID_ANALYTICS_DISABLED` | — | Opt out of anonymous tool-call telemetry |
+| `COREZOID_ANALYTICS_ENDPOINT` | built-in prod URL | Override analytics endpoint |
+| `COREZOID_ANALYTICS_CONV_ID` | `1852976` | Override analytics conv_id |
+| `COREZOID_FEEDBACK_DISABLED` | — | Disable user-initiated feedback submission |
+| `COREZOID_FEEDBACK_ENDPOINT` | built-in prod URL | Override feedback endpoint |
+| `COREZOID_FEEDBACK_CONV_ID` | `1871779` | Override feedback conv_id |
 
 ## Architecture
 
@@ -215,13 +267,21 @@ validation errors, and summarize what each process does.
 Claude Code / Codex
   └── corezoid MCP server (prebuilt binary)
         ├── Auth          login, logout
-        ├── Workspace     list-workspaces, list-stages, list-projects
+        ├── Workspace     list-workspaces, list-stages, list-projects,
+        │                 create-project, modify-project, delete-project, show-project
         ├── Processes     pull-process, pull-folder, push-process, lint-process
         │                 create-process, create-folder, create-alias, create-variable
+        │                 show-folder, list-folders, modify-folder, delete-folder, delete-process
         ├── Tasks         run-task, list-node-tasks, list-task-history
         │                 modify-task, delete-task
-        └── Dashboards    create-dashboard, get-dashboard, add-chart,
-                          modify-chart, get-chart, set-dashboard-layout
+        ├── Dashboards    create-dashboard, get-dashboard, add-chart,
+        │                 modify-chart, get-chart, set-dashboard-layout
+        ├── Access        share-object, list-shares,
+        │                 create-group, modify-group, delete-group, list-group-objects,
+        │                 add-to-group, remove-from-group, list-groups,
+        │                 create-api-key, modify-api-key, delete-api-key, list-api-keys,
+        │                 find-principal, invite-user
+        └── Feedback      send-feedback
 ```
 
 ## Project structure

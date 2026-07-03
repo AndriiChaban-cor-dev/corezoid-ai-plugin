@@ -26,7 +26,8 @@ You have access to the Corezoid API via the `corezoid` MCP server.
 | `push-process` | Validate and deploy a `.conv.json` file |
 | `lint-process` | Validate process structure locally (no API needed) |
 | `run-task` | Run a task on an already-deployed process |
-| `create-process` | Create a new empty process in a folder |
+| `create-process` | Create a new empty process (`conv_type: "process"`) in a folder |
+| `create-state-diagram` | Create a new empty state diagram (`conv_type: "state"`) in a folder |
 | `create-folder` | Create a new subfolder |
 | `create-alias` | Create a short alias for a process |
 | `create-variable` | Create a Corezoid environment variable |
@@ -36,6 +37,18 @@ You have access to the Corezoid API via the `corezoid` MCP server.
 | `get-chart` | Get a single chart with its series data |
 | `modify-chart` | Modify an existing chart (full series required) |
 | `set-dashboard-layout` | Save chart positions on the grid (required to make charts visible) |
+| `share-object` | Grant or revoke access on a process / folder / stage / project (use privs="none" to revoke — same wire op as share with empty privs) |
+| `list-shares` | Audit who currently has access to an object |
+| `create-group` / `modify-group` / `delete-group` | Manage workspace user groups (delete refuses if group has active shares unless force=true) |
+| `list-group-objects` | List processes currently shared with a group (used to audit impact before delete) |
+| `add-to-group` / `remove-from-group` | Manage group membership |
+| `list-groups` | List groups in the workspace |
+| `create-api-key` | Create an API key. Secret is written to ~/.corezoid/api-keys/<file>.json (chmod 600) — never printed in chat |
+| `modify-api-key` | Rename or re-describe an API key |
+| `delete-api-key` | Delete an API key (invalidates the secret immediately) |
+| `list-api-keys` | List API keys in the workspace |
+| `find-principal` | Resolve user / group / API-key name → obj_id (call before share-object) |
+| `invite-user` | Invite an external email AND share an object in one call |
 
 ## Platform Architecture
 
@@ -56,6 +69,7 @@ Workspace
 - **Nodes** — processing units connected via `go` transitions
 - **Tasks** — data objects that flow through process nodes
 - **Variables** — workspace-scoped constants referenced as `{{env_var[@name]}}`
+- **State Diagrams** — a special object (`conv_type: "state"`) that stores long-lived tasks keyed by `ref`. Other processes read with `{{conv[<id>].ref[<ref>].<field>}}` and write with `api_copy mode: "create"/"modify"`. Allowed node set is restricted to 10 logics (Start, Condition, Code, Set Parameters, Copy Task, Modify Task, Set State, Delay, Queue, End). Use `/corezoid-state-diagram-create` and `/corezoid-state-diagram-edit`.
 
 ## Node Types
 
@@ -106,10 +120,17 @@ For domain-specific workflows use the specialized skills:
 - `/corezoid-init` — setting up environment and pulling from Corezoid
 - `/corezoid-create` — creating a new process from scratch
 - `/corezoid-edit` — modifying an existing process
+- `/corezoid-state-diagram-create` — creating a new state diagram (`conv_type: "state"`) from scratch
+- `/corezoid-state-diagram-edit` — modifying an existing state diagram
 - `/corezoid-review` — auditing and analyzing a single process
 - `/corezoid-project-review` — auditing an entire project or folder (cross-process analysis)
+- `/corezoid-stage-scan` — pre-merge/pre-deploy static check of exported stage `.zip`s: non-active processes, empty/battered processes, broken node links, broken/inactive `conv_id` references (explains "Only active process can be used", "referenced node X does not exist", "Access user to conveyor is denied")
 - `/corezoid-dashboard-manager` — creating dashboards and charts for process metrics
 - `/corezoid-process-tech-writer` — documenting a process (Markdown + enriched JSON)
+- `/corezoid-alias-manager` — creating, listing, modifying, deleting, and using aliases
+- `/corezoid-variable-manager` — creating, listing, modifying, deleting variables (visible/secret, raw/json)
+- `/corezoid-process-optimizer` — reduce tacts (merge nodes), clean data flow, fill names, add semaphors
+- `/corezoid-api-connector` — build processes that call the Corezoid public API (`/api/2/json/`) using `api_secret_outer`
 
 ## Reference Documents
 
@@ -117,7 +138,10 @@ Use the `Read` tool to load these files when you need deeper detail:
 
 | Path | When to read |
 |---|---|
-| `${CLAUDE_PLUGIN_ROOT}/docs/node-structures.md` | JSON schemas for all node types (canonical reference) |
+| `${CLAUDE_PLUGIN_ROOT}/docs/node-structures.md` | JSON schemas for all node types + full Logics fields reference (canonical) |
+| `${CLAUDE_PLUGIN_ROOT}/docs/nodes/set-parameters-built-in-functions.md` | Built-in functions: `$.math`, `$.date`, `$.random`, `$.sha1_hex`, `$.md5_hex`, `$.base64_encode`, `$.unixtime`, `$.map`, `$.filter` |
+| `${CLAUDE_PLUGIN_ROOT}/docs/nodes/set-parameters-dynamic-values.md` | Dynamic values: `{{var}}`, `{{node[id].count}}`, `{{node[id].SumID}}`, `{{conv[@alias].ref[...]}}`, `{{env_var[@name].key[1]}}` |
+| `${CLAUDE_PLUGIN_ROOT}/docs/tasks/task-metadata.md` | Global `root.*` fields: `root.task_id`, `root.ref`, `root.conv_id`, `root.node_id`, `root.prev_node_id`, `root.user_id`, `root.change_time`, `root.create_time` |
 | `${CLAUDE_PLUGIN_ROOT}/docs/nodes/code-node.md` | Code node details and available JS libraries |
 | `${CLAUDE_PLUGIN_ROOT}/docs/nodes/call-process-node.md` | Call a Process node, semaphores, cross-folder calls |
 | `${CLAUDE_PLUGIN_ROOT}/docs/nodes/api-call-node.md` | HTTP API call configuration |
@@ -126,6 +150,9 @@ Use the `Read` tool to load these files when you need deeper detail:
 | `${CLAUDE_PLUGIN_ROOT}/docs/nodes/end-node.md` | End node success/error configuration |
 | `${CLAUDE_PLUGIN_ROOT}/docs/process/process-json-validation.md` | Validation rules and common errors |
 | `${CLAUDE_PLUGIN_ROOT}/docs/process/error-handling.md` | Error handling patterns |
+| `${CLAUDE_PLUGIN_ROOT}/docs/state-diagrams/state-diagram-overview.md` | State diagram concepts and allowed nodes |
+| `${CLAUDE_PLUGIN_ROOT}/docs/state-diagrams/state-diagram-node-structures.md` | JSON schemas for nodes inside a state diagram |
+| `${CLAUDE_PLUGIN_ROOT}/docs/state-diagrams/state-diagram-process-interaction.md` | How driver processes read / create / modify state tasks |
 | `${CLAUDE_PLUGIN_ROOT}/docs/variables-guide.md` | Variable naming rules, creation workflow, usage examples |
 
 ## Tips
@@ -135,3 +162,15 @@ Use the `Read` tool to load these files when you need deeper detail:
 - Node IDs are 24-char hex — generate with `crypto.randomBytes(12).toString('hex')`
 - Variables are workspace-scoped — check `_ENV_VARS_.json` before creating new ones
 - `push-process` is mandatory after any edit — changes exist only in memory until pushed
+
+## Proactive improvement/bug reporting
+
+When responding to a user message that reveals a **platform-level mistake** — wrong node type, wrong API choice (Corezoid vs Simulator), wrong process structure, wrong MCP tool, missing required platform field — add one line to your response, adapted to the situation:
+
+- Bug / broken behavior → "Хотите сообщить о баге команде Corezoid?"
+- Unexpected plugin choice → "Хотите сообщить об этом команде Corezoid?"
+- User hints something could be better → "Хотите отправить пожелание команде Corezoid?"
+
+This is one extra line in the same response, not a separate action. Offer once per problem; do not repeat if the user declines.
+
+**Do not add this line** for business-logic iterations: changing a value, adding a field, renaming, adjusting a condition — these are normal user changes, not platform issues.

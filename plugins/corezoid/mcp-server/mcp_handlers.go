@@ -23,24 +23,37 @@ var toolHandlers = map[string]toolHandler{
 	"logout": handleLogout,
 
 	// process / folder / alias
-	"pull-process":    handlePullProcess,
-	"pull-folder":     handlePullFolder,
-	"create-variable": handleCreateVariable,
-	"push-process":    handlePushProcess,
-	"lint-process":    handleLintProcess,
-	"run-task":        handleRunTask,
-	"create-process":  handleCreateProcess,
-	"create-folder":   handleCreateFolder,
-	"create-alias":    handleCreateAlias,
+	"pull-process":         handlePullProcess,
+	"pull-folder":          handlePullFolder,
+	"create-variable":      handleCreateVariable,
+	"push-process":         handlePushProcess,
+	"lint-process":         handleLintProcess,
+	"build-project-index":  handleBuildProjectIndex,
+	"describe-process":     handleDescribeProcess,
+	"run-task":             handleRunTask,
+	"create-process":       handleCreateProcess,
+	"create-state-diagram": handleCreateStateDiagram,
+	"create-folder":        handleCreateFolder,
+	"show-folder":          handleShowFolder,
+	"list-folders":         handleListFolders,
+	"modify-folder":        handleModifyFolder,
+	"delete-folder":        handleDeleteFolder,
+	"delete-process":       handleDeleteProcess,
+	"create-alias":         handleCreateAlias,
 
 	// discovery
 	"list-workspaces": handleListWorkspaces,
 	"list-projects":   handleListProjects,
 	"list-stages":     handleListStages,
+	"create-project":  handleCreateProject,
+	"modify-project":  handleModifyProject,
+	"delete-project":  handleDeleteProject,
+	"show-project":    handleShowProject,
 
 	// tasks
 	"list-task-history": handleListTaskHistory,
 	"list-node-tasks":   handleListNodeTasks,
+	"get-node-stat":     handleGetNodeStat,
 	"modify-task":       handleModifyTask,
 	"delete-task":       handleDeleteTask,
 
@@ -51,14 +64,39 @@ var toolHandlers = map[string]toolHandler{
 	"modify-chart":         handleModifyChart,
 	"get-chart":            handleGetChart,
 	"set-dashboard-layout": handleSetDashboardLayout,
+
+	// access control (share, groups, api keys, invites)
+	"share-object":       handleShareObject,
+	"list-shares":        handleListShares,
+	"create-group":       handleCreateGroup,
+	"modify-group":       handleModifyGroup,
+	"list-group-objects": handleListGroupObjects,
+	"delete-group":       handleDeleteGroup,
+	"add-to-group":       handleAddToGroup,
+	"remove-from-group":  handleRemoveFromGroup,
+	"list-groups":        handleListGroups,
+	"create-api-key":     handleCreateAPIKey,
+	"modify-api-key":     handleModifyAPIKey,
+	"delete-api-key":     handleDeleteAPIKey,
+	"list-api-keys":      handleListAPIKeys,
+	"find-principal":     handleFindPrincipal,
+	"invite-user":        handleInviteUser,
+
+	// feedback
+	"send-feedback": handleSendFeedback,
 }
 
 // noAuthTools don't need any credentials. lint runs entirely on local files;
 // login/logout manage credentials themselves.
+// send-feedback must not require auth so users can report problems that
+// occurred before or during the login flow.
 var noAuthTools = map[string]struct{}{
-	"lint-process": {},
-	"login":        {},
-	"logout":       {},
+	"lint-process":        {},
+	"login":               {},
+	"logout":              {},
+	"send-feedback":       {},
+	"build-project-index": {},
+	"describe-process":    {},
 }
 
 // tokenOnlyTools need an OAuth token but not a fully configured workspace or
@@ -67,6 +105,10 @@ var tokenOnlyTools = map[string]struct{}{
 	"list-workspaces": {},
 	"list-projects":   {},
 	"list-stages":     {},
+	"create-project":  {},
+	"modify-project":  {},
+	"delete-project":  {},
+	"show-project":    {},
 }
 
 // handleToolCall dispatches an MCP tool invocation. ctx must be non-nil — it
@@ -114,6 +156,7 @@ func handleToolCall(ctx context.Context, name string, args map[string]interface{
 			Transport:      analyticsTransport,
 			ServerVersion:  mcpServerVersion,
 			InstallationID: installationID,
+			UserEmail:      telemetryEmail,
 		}
 		if isError {
 			e.ErrorType = classifyError(result)

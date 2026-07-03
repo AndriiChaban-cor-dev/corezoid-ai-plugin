@@ -75,9 +75,11 @@
 
 10. **Customize Response** (Boolean)
     - Default: `false`.
-    - When set to `true`, allows defining custom mapping rules in the `response` and `response_type`
-      parameters. If `false`, the default mapping (`{"header": "{{header}}", "body": "{{body}}"}`)
-      is used.
+    - When `false`, the parsed JSON response body is **spread into the task data root** — each
+      top-level field of the body becomes a top-level task parameter (response headers are not
+      captured, and the `response`/`response_type` mapping is ignored). When `true`, only the
+      fields you declare in `response`/`response_type` are written, nested under the keys you
+      choose. See [Reading the response body](#reading-the-response-body-customize_response-false-vs-true).
 11. **Response Type** (Object)
     - Used only when `customize_response` is `true`.
     - Defines the expected data types for the fields mapped in the `response` parameter.
@@ -151,8 +153,79 @@ The API Call node allows customization of how response data is processed:
 
 2. **Response Mapping**
    - Maps response data to task parameters
-   - Default fields: `header` (response headers) and `body` (response content)
-   - Custom mapping allows selecting specific fields from the response
+   - With `customize_response: false` (default), no mapping is applied — the response body is
+     spread into the task data root (see below); headers are discarded
+   - With `customize_response: true`, only the fields declared in `response`/`response_type` are
+     written, under the keys you name (`{{body}}` = full body, `{{header}}` = full headers)
+
+## Reading the response body: `customize_response` false vs true
+
+How the response body reaches the task depends entirely on `customize_response`. The two modes
+behave very differently (verified against a live endpoint returning
+`{"data":{...},"json":{...},"url":"..."}`):
+
+| `customize_response` | `response`/`response_type` | Where the body lands |
+| --- | --- | --- |
+| `false` (default) | **ignored** | Body is **spread into the task root**: each top-level field becomes a task parameter. A body `{"data":{"id":42}}` is read as `{{data.id}}` (task path `data.data.id`). Response **headers are not captured**. |
+| `true` | applied | Only the declared fields are written, **nested under your keys**. `response: {"body":"{{body}}"}` puts the whole body under `{{body}}`, so the same id is `{{body.data.id}}` (task path `data.body.data.id`). |
+
+`rfc_format` does not change this placement.
+
+### Prefer `customize_response: false` to capture a body
+
+For most cases — especially reading an ID or object the API just created — `customize_response: false`
+is the robust choice: the whole body is available at the task root with no mapping to get wrong.
+
+### ⚠️ Silent failure with `customize_response: true`
+
+Custom mapping is **sensitive to the real response shape**, and a mismatch fails quietly:
+
+- **Mapped path absent.** `response: {"new_id":"{{body.data.id}}"}` against a body that has no
+  `data.id` sets `new_id` to an **empty string** and routes the task to the **success** path — no
+  error, no `err_node`. Downstream nodes then run with an empty value.
+- **Type mismatch is coerced, not rejected.** `response_type` accepts only `string`, `object`, or
+  `array`; declaring `array` for an object body wraps it (`[ {...} ]`) rather than erroring.
+- A genuine `err_node` exit happens only when the response is not parseable JSON at all (e.g. an
+  HTML 5xx page → tag `api_no_valid_json`, with `__conveyor_api_return_*` fields populated).
+
+Therefore: use `customize_response: true` only after confirming the **actual** response shape, and
+validate the mapped value downstream (e.g. a Condition node checking it is non-empty) instead of
+assuming the mapping succeeded.
+
+## Required node shape: author the full canonical `api` logic
+
+Although the JSON schema marks only `type`, `method`, `url`, and `err_node_id` as strictly
+required, an `api` logic written with just those fields is **incomplete** and breaks deployment.
+A "light" node passes client-side validation (and `lint-process`), but the server cannot complete
+the **commit** of an under-specified `api` logic: it stops responding, and after ~15–20 s
+`push-process` fails with `Error deploying process: failed to commit changes: no response from
+server` instead of deploying. (Verified live: the identical process commits cleanly in ~10 s once
+the node carries the full field set; the light variant failed this way on every attempt.) This is a
+common, easily-misdiagnosed cause of a `push` that does not complete on a process containing an API
+Call node.
+
+**Always author an API Call node with the full canonical field set**, even when a value is the
+default:
+
+| Field | Typical value | Notes |
+| --- | --- | --- |
+| `type` | `"api"` | |
+| `method` | `"GET"` / `"POST"` / … | required |
+| `url` | endpoint | required; use a variable, never hardcoded |
+| `extra` / `extra_type` | request params + their types | both required, may be `{}` |
+| `format` | `""` (default) or `"raw"` | |
+| `max_threads` | `5` | |
+| `send_sys` | `true` | `false` for non-Corezoid endpoints |
+| `customize_response` | `false` or `true` | see "Reading the response body" below |
+| `response` / `response_type` | mapping objects | only consulted when `customize_response: true` |
+| `rfc_format` | `true` | |
+| `debug_info` | `false` | |
+| `cert_pem` | `""` | a PEM string only when signing by certificate |
+| `version` | `2` | |
+| `err_node_id` | error-node id | required |
+
+Copy the [GET configuration example](#configuration-example-get-request) as a template rather than
+writing a minimal block from scratch. Do **not** set `is_migrate` by hand — it is server-managed.
 
 ## Validation Rules
 
@@ -164,8 +237,14 @@ The API Call node undergoes validation during process commit with these checks:
 4. If `err_node_id` is specified, it must reference a valid node
 5. `max_threads` must be a positive integer if specified
 
+> Note: schema validation only enforces `type`, `method`, `url`, and `err_node_id`. Omitting the
+> other canonical fields is **not** caught client-side and makes the deploy fail at commit
+> (`no response from server`) — see
+> [Required node shape](#required-node-shape-author-the-full-canonical-api-logic).
+
 ## Best Practices
 
+- Author the **full canonical `api` field set** (see [Required node shape](#required-node-shape-author-the-full-canonical-api-logic)); a minimal/"light" node passes validation but makes `push-process` fail at commit (`no response from server`)
 - Include proper error handling for all API calls
 - After an API Call node, add a "Reply to process" node to return the data
 - Set reasonable timeouts based on the expected response time
@@ -262,14 +341,14 @@ default error escalation pattern connection.
         "extra_type": {}, // Corresponding types for extra parameters (empty)
         "max_threads": 5, // Maximum concurrent requests allowed for this node
         "debug_info": false, // Do not include extra debug info in the task
-        "customize_response": false, // Use default response mapping (header and body)
+        "customize_response": false, // false → response body is spread into the task root; response/response_type below are IGNORED
         "response": {
-          // Default response mapping (used when customize_response is false)
+          // Ignored while customize_response is false (only used when it is true)
           "header": "{{header}}",
           "body": "{{body}}"
         },
         "response_type": {
-          // Default response types (used when customize_response is false)
+          // Ignored while customize_response is false (only used when it is true)
           "header": "object",
           "body": "object"
         },

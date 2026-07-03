@@ -95,6 +95,13 @@ func handlePullProcess(ctx context.Context, args map[string]interface{}) (string
 
 // handlePullFolder recursively downloads a folder (stage) and all its
 // processes/subfolders into the current working directory.
+//
+// On success, auto-rebuilds .corezoid/project-map.json, QUERIES.md and the
+// CLAUDE.md auto-block. This lives in the handler (not just in the
+// corezoid-init SKILL.md) so the index refreshes even when the user calls
+// pull-folder directly, bypassing the init skill entirely. Index build
+// failure is a warning, never a rollback — the pulled files are still on
+// disk and usable.
 func handlePullFolder(ctx context.Context, args map[string]interface{}) (string, bool) {
 	folderID, err := intArg(args, "folder_id")
 	if err != nil {
@@ -105,7 +112,11 @@ func handlePullFolder(ctx context.Context, args map[string]interface{}) (string,
 	if err := downloadStageRecursively(v, folderID, "."); err != nil {
 		return fmt.Sprintf("Error fetching folder: %v", err), true
 	}
-	return fmt.Sprintf("Folder %d saved to current directory", folderID), false
+	msg := fmt.Sprintf("Folder %d saved to current directory", folderID)
+	// pull-folder is the once-per-session event where refreshing
+	// state-store task contents is worth an extra Corezoid round-trip.
+	msg += autoRebuildIndex(ctx, ".")
+	return msg, false
 }
 
 // handleCreateVariable creates a Corezoid env variable scoped to the given stage.
@@ -178,7 +189,14 @@ func handlePushProcess(ctx context.Context, args map[string]interface{}) (string
 		return fmt.Sprintf("Error deploying process: %v", err), true
 	}
 
-	return fmt.Sprintf("Process deployed successfully, ProcessID: %d", procID), false
+	// Auto-rebuild the project index so describe-process / QUERIES /
+	// project-review see the just-deployed changes immediately. push
+	// path passes fetchStateContents=false: the tasks[] block preserved
+	// from the last build stays intact, and the edit loop doesn't pay
+	// for a fresh Corezoid round-trip on every save.
+	msg := fmt.Sprintf("Process deployed successfully, ProcessID: %d", procID)
+	msg += autoRebuildIndex(ctx, ".")
+	return msg, false
 }
 
 // handleLintProcess validates a local .conv.json without touching the server.
@@ -285,6 +303,19 @@ func handleRunTask(ctx context.Context, args map[string]interface{}) (string, bo
 // handleCreateProcess creates an empty process in the given local folder and
 // writes its skeleton JSON to disk for the user to flesh out.
 func handleCreateProcess(ctx context.Context, args map[string]interface{}) (string, bool) {
+	return createConv(ctx, args, "process")
+}
+
+// handleCreateStateDiagram creates an empty state diagram (conv_type "state")
+// in the given local folder and writes its skeleton JSON to disk.
+func handleCreateStateDiagram(ctx context.Context, args map[string]interface{}) (string, bool) {
+	return createConv(ctx, args, "state")
+}
+
+// createConv is the shared implementation for create-process and
+// create-state-diagram. It accepts a conv_type ("process" or "state") and
+// produces a .conv.json skeleton on disk inside the requested folder.
+func createConv(ctx context.Context, args map[string]interface{}, convType string) (string, bool) {
 	folderPath := resolveDirPath(args, "folder_path")
 	processName, err := strArg(args, "process_name")
 	if err != nil {
@@ -297,9 +328,9 @@ func handleCreateProcess(ctx context.Context, args map[string]interface{}) (stri
 	}
 
 	v := NewValidator(ctx, 0)
-	processID := v.CreateEmptyProcess(folderID, processName, "")
+	processID := v.CreateEmptyConv(folderID, processName, "", convType)
 	if processID == 0 {
-		return fmt.Sprintf("Error: failed to create process '%s'", processName), true
+		return fmt.Sprintf("Error: failed to create %s '%s'", convType, processName), true
 	}
 
 	procInfo1, err := v.ExportProcess()
@@ -324,7 +355,11 @@ func handleCreateProcess(ctx context.Context, args map[string]interface{}) (stri
 		return fmt.Sprintf("Error writing file: %v", err), true
 	}
 
-	return fmt.Sprintf("Process '%s' created and saved to %s", processName, filePath), false
+	label := "Process"
+	if convType == "state" {
+		label = "State diagram"
+	}
+	return fmt.Sprintf("%s '%s' created and saved to %s", label, processName, filePath), false
 }
 
 // handleCreateFolder creates a new folder under the given parent, mirrors it
@@ -380,6 +415,125 @@ func handleCreateFolder(ctx context.Context, args map[string]interface{}) (strin
 	}
 
 	return fmt.Sprintf("Folder '%s' created and saved to %s", folderName, filePath), false
+}
+
+// handleShowFolder returns metadata for a single folder (title, obj_type,
+// parent). Used to introspect folders without writing anything to disk.
+func handleShowFolder(ctx context.Context, args map[string]interface{}) (string, bool) {
+	folderID, err := intArg(args, "folder_id")
+	if err != nil {
+		return "Error: " + err.Error(), true
+	}
+
+	v := NewValidator(ctx, 0)
+	info, err := v.ShowFolder(folderID)
+	if err != nil {
+		return fmt.Sprintf("Error: %v", err), true
+	}
+
+	kind := "folder"
+	switch info.ObjType {
+	case 1:
+		kind = "root"
+	case 2:
+		kind = "project"
+	case 3:
+		kind = "stage"
+	}
+	return fmt.Sprintf("Folder #%d %q (kind=%s, parent=%s#%d)",
+		info.ObjID, info.Title, kind, info.ParentObjType, info.ParentObjID), false
+}
+
+// handleListFolders prints the immediate children of a folder in a tabular
+// form. Subfolders come first, then convs (processes + state diagrams).
+func handleListFolders(ctx context.Context, args map[string]interface{}) (string, bool) {
+	folderID, err := intArg(args, "folder_id")
+	if err != nil {
+		return "Error: " + err.Error(), true
+	}
+
+	v := NewValidator(ctx, 0)
+	children, err := v.ListFolder(folderID)
+	if err != nil {
+		return fmt.Sprintf("Error: %v", err), true
+	}
+
+	if len(children) == 0 {
+		return fmt.Sprintf("Folder #%d is empty.", folderID), false
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Folder #%d children (%d total):\n\n", folderID, len(children)))
+	sb.WriteString(fmt.Sprintf("  %-10s  %-12s  %s\n", "ID", "Kind", "Title"))
+	sb.WriteString("  " + strings.Repeat("-", 50) + "\n")
+	for _, c := range children {
+		kind := c.Obj
+		if c.Obj == "conv" && c.ConvType != "" {
+			kind = c.ConvType
+		}
+		sb.WriteString(fmt.Sprintf("  %-10d  %-12s  %s\n", c.ObjID, kind, c.Title))
+	}
+	return sb.String(), false
+}
+
+// handleModifyFolder renames a folder and/or updates its description. At
+// least one of title / description must be provided — the API silently
+// accepts an empty modify so we guard client-side.
+func handleModifyFolder(ctx context.Context, args map[string]interface{}) (string, bool) {
+	folderID, err := intArg(args, "folder_id")
+	if err != nil {
+		return "Error: " + err.Error(), true
+	}
+	title := optStrArg(args, "title")
+	description := optStrArg(args, "description")
+	if title == "" && description == "" {
+		return "Error: at least one of title or description must be provided", true
+	}
+
+	v := NewValidator(ctx, 0)
+	if err := v.ModifyFolder(folderID, title, description); err != nil {
+		return fmt.Sprintf("Error: %v", err), true
+	}
+
+	parts := []string{}
+	if title != "" {
+		parts = append(parts, fmt.Sprintf("title=%q", title))
+	}
+	if description != "" {
+		parts = append(parts, fmt.Sprintf("description=%q", description))
+	}
+	return fmt.Sprintf("Folder #%d updated (%s)", folderID, strings.Join(parts, ", ")), false
+}
+
+// handleDeleteProcess moves a process (conv) to the Corezoid recycle bin
+// (Trash). The operation is reversible from the UI; permanent destruction is
+// intentionally not exposed via this tool.
+func handleDeleteProcess(ctx context.Context, args map[string]interface{}) (string, bool) {
+	processID, err := intArg(args, "process_id")
+	if err != nil {
+		return "Error: " + err.Error(), true
+	}
+
+	v := NewValidator(ctx, 0)
+	if err := v.DeleteProcess(processID); err != nil {
+		return fmt.Sprintf("Error: %v", err), true
+	}
+	return fmt.Sprintf("Process #%d moved to Trash.", processID), false
+}
+
+// handleDeleteFolder moves a folder to the recycle bin. The Corezoid UI's
+// Trash view restores it; permanent destruction is intentionally not exposed.
+func handleDeleteFolder(ctx context.Context, args map[string]interface{}) (string, bool) {
+	folderID, err := intArg(args, "folder_id")
+	if err != nil {
+		return "Error: " + err.Error(), true
+	}
+
+	v := NewValidator(ctx, 0)
+	if err := v.DeleteFolder(folderID); err != nil {
+		return fmt.Sprintf("Error: %v", err), true
+	}
+	return fmt.Sprintf("Folder #%d moved to Trash.", folderID), false
 }
 
 // handleCreateAlias creates a Corezoid alias (short_name → conv) pointing at
