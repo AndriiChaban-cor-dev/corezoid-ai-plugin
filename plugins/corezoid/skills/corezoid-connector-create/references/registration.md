@@ -54,8 +54,9 @@ needs fixing on the fly.
 Task ref = `conv_id` of the connector: a repeated send updates the Smart API, it never
 creates a duplicate.
 
-Before sending, call `cz-structure` `show-process` on the connector's own `conv_id` (the
-process just built and tested — not the receiver) to resolve `owner_id`/`owner_login`.
+Before sending, call `cz-structure` `show-process` with `process_id` = the connector's own
+`conv_id` (the process just built and tested — not the receiver) to resolve `owner_id`/
+`owner_login`.
 
 | Field | Value |
 |---|---|
