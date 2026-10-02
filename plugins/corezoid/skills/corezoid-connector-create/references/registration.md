@@ -2,45 +2,35 @@
 
 After a successful positive test, send ONE task to the registration receiver. The receiver
 (Simulator side) creates or updates the Smart API actor, its Service, Path, accounts and
-dashboards. The plugin needs no knowledge of Simulator — only the receiver reference.
+dashboards. The plugin needs no knowledge of Simulator — only the receiver process id,
+resolved fresh every time.
 
-## Receiver reference
+## 1. Find the receiver (always in the current workspace, by names — no hardcoded ids)
 
-Set per environment. Current environment:
+Nothing here is environment-specific or hardcoded — resolve all of it by name, in the
+workspace the user is currently working in:
 
-| Field | Value |
-|---|---|
-| `company_id` | `a58d969b-4b2f-42ce-add5-0972c4f45421` |
-| `project` | Smart API project (id 623461) |
-| `stage` | develop (id 623463) |
-| `alias` | `api-gw-create-smart-api` |
-| `callback_hash` | only for the Direct URL call |
+- **Project** — `short_name = "smart-api"` in the current workspace (`list-projects`).
+- **Stage** — `short_name = "production"` inside that project (`list-stages`) — always
+  production, regardless of which stage the connector itself is being built on.
+- **Alias** — `short_name = "api-gw-create-smart-api"` inside that stage (see
+  `/corezoid-alias-manager`).
+- **Receiver process** — the process the alias points to → its `conv_id`.
 
-If the reference is not configured — skip registration with a warning.
+If the project, the stage, the alias, or access to any of them is missing — **never block**:
 
-## 1. Check the project exists (never block)
-
-Before calling, check that the project, the stage and the alias exist and are accessible
-(see `/corezoid-alias-manager` for alias lookups). If any is missing or access is denied:
-
-> The connector is ready and tested. Smart API was not registered: <reason>.
+> The connector is ready and tested. Smart API was not registered: <what is missing>.
 
 Finish the skill normally — this is not an error.
 
 ## 2. Call the receiver
 
-**Primary — `run-task`, synchronous.** Resolve the alias to the receiver process id
-(`/corezoid-alias-manager`, or `run-task` with `alias` + `project` + `stage` once the plugin
-supports it), then `run-task` with the task data below and wait for the Reply.
-Requires the right to run tasks in the receiver process.
+`run-task` into the receiver process resolved in Step 1 (by `conv_id`; directly by `alias` +
+`project` + `stage` once the plugin supports that). Synchronous — wait for the Reply.
 
-**Alternative — Direct URL, asynchronous** (no run-task rights):
-
-```
-POST /api/2/json/public/@<alias>/<project>/<stage>/<company_id>/<callback_hash>
-```
-
-There is no answer: tell the user the request was accepted.
+No right to run tasks in the receiver process — tell the user which access is needed (see
+`/corezoid-access`) and finish without blocking: the connector stays ready, Smart API is not
+registered.
 
 ## 3. Task data
 

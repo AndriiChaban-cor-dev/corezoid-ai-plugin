@@ -196,11 +196,12 @@ Follow `references/test-rules.md`. In short:
 
 Follow `references/registration.md`. In short:
 
-1. Take the receiver reference (company, project, stage, alias `api-gw-create-smart-api`).
-2. Check that the project, stage and alias exist and are accessible. If not — **warn the user
-   and finish: the connector is ready, Smart API is not registered. Never block.**
-3. Send the registration task to the receiver: primary — `run-task` (wait for Reply);
-   alternative — Direct URL of the alias (no answer). Task ref = `conv_id`.
+1. Find the receiver in the current workspace by names: project short_name "smart-api" → its
+   stage "production" → alias "api-gw-create-smart-api" → the process it points to.
+2. If anything is not found or not accessible — warn the user and finish: the connector is
+   ready, Smart API is not registered. Never block.
+3. `run-task` into the receiver process (wait for Reply). Task ref = `conv_id` of the
+   connector.
 4. Show the user the Smart API actor id from the reply.
 
 ## Step 11: Report
