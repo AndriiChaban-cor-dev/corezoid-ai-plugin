@@ -95,6 +95,7 @@ plugins/corezoid/
     corezoid-dashboard-manager/     — Create and edit Corezoid dashboards
     corezoid-alias-manager/         — Create, list, modify, delete process aliases
     corezoid-variable-manager/      — Create, list, modify, delete environment variables (env_var)
+    corezoid-connector-create/      — Build an atomic single-endpoint connector to any HTTP API (external, internal, or Corezoid itself)
     corezoid-api-connector/         — Build processes that call the Corezoid public API (/api/2/json)
     corezoid-gitcall/               — Custom code (Python/Go/Java/PHP/JS/…) as a git_call step
     corezoid-access/                — Share processes/folders, manage groups/API keys

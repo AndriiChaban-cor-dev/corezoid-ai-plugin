@@ -29,6 +29,7 @@ The plugin bundles a Go MCP server that exposes Corezoid operations as MCP tools
 | `corezoid-access`              | "share", "give access", "create group", "create api key" | Object sharing, user groups, API keys, invites    |
 | `corezoid-alias-manager`       | "alias", "short name", "rename alias"    | Create, list, modify, delete process aliases      |
 | `corezoid-variable-manager`    | "variable", "env var", "create variable" | Create, list, modify, delete environment variables |
+| `corezoid-connector-create`    | "create a connector", "integrate with <API>", "коннектор к API" | Atomic single-endpoint connector to any HTTP API (external, internal, or Corezoid itself) |
 | `corezoid-api-connector`       | "call Corezoid API", "api/2/json", "api_secret_outer" | Processes that call the Corezoid public API       |
 | `corezoid-process-optimizer`   | "optimize", "reduce tacts", "improve"    | Merge nodes, clean data flow, add resilience      |
 | `corezoid-describe`            | "update description", "add description", "describe this process" | Set or refresh the description of a process, folder, or project |
@@ -497,6 +498,7 @@ corezoid-ai-plugin/
 │   │   ├── corezoid-describe/              # Object description skill
 │   │   ├── corezoid-alias-manager/         # Alias management skill
 │   │   ├── corezoid-variable-manager/      # Environment variable management skill
+│   │   ├── corezoid-connector-create/      # Single-endpoint API connector builder skill
 │   │   ├── corezoid-api-connector/         # Corezoid public-API caller skill
 │   │   ├── corezoid-gitcall/               # git_call custom-code skill
 │   │   ├── corezoid-gen-bot/               # Messenger bot generation skill
