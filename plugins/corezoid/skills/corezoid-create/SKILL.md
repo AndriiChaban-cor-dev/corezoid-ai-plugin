@@ -213,7 +213,7 @@ Use the `Read` tool to load these files when specific node or validation details
 
 | Path | Description |
 |---|---|
-| `${CLAUDE_PLUGIN_ROOT}/samples/api-post.json` | HTTP POST API call (connector pattern) |
+| `${CLAUDE_PLUGIN_ROOT}/samples/api-post.json` | A single `api` Call node inside a business-logic process — not the connector pattern; for a standalone connector use `/corezoid-connector-create` (`references/process-skeleton.md` there has the compliant shape: `debug_info: true`, named result fields) |
 | `${CLAUDE_PLUGIN_ROOT}/samples/corezoid-api-node-list.conv.json` | Corezoid API connector (Node List, `api_secret_outer` pattern) |
 | `${CLAUDE_PLUGIN_ROOT}/samples/stripe-checkout.json` | Stripe payment checkout flow |
 | `${CLAUDE_PLUGIN_ROOT}/samples/create-actors.json` | Business logic with multiple process calls |

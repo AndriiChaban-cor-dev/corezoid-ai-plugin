@@ -347,7 +347,11 @@ re-pointed at a new process without invalidating URLs already handed out.
 
 ## Resolving environment values
 
-MCP alias tools resolve `stage_id`/`project_id` automatically from the workspace marker. For **direct** `/api/2/json` calls (the raw workflows above) collect the values from:
+`create-alias` resolves `stage_id`/`project_id` automatically from the target process's own
+location — no argument needed. `list-aliases` (`cz-structure`) does not: it takes
+`project_id`/`stage_id`/`company_id` explicitly, because it is meant to look up aliases in
+any stage, not only the one currently configured. For **direct** `/api/2/json` calls (the raw
+workflows above) collect the values from:
 
 | Value | Where to find it |
 |-------|------------------|

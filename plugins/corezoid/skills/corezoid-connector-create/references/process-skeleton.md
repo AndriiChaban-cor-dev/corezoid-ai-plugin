@@ -12,10 +12,10 @@
 | 6 | Reply OK | 0 | `api_rpc_reply` | `result: ok`, `http_code`, named result fields |
 | 7 | Final | 2 | — | |
 | 10 | Reply Validation Error | 0 | `api_rpc_reply` | collapsed; `error_type: validation`, `invalid_params` → 10a Error final `Invalid Input` |
-| 11 | API Error Type? | 3 | `go_if_const` on `__conveyor_api_return_type_tag__` | collapsed; branches → 12 / 13, default → 12 |
+| 11 | API Error Type? | 3 | `go_if_const` on `__conveyor_api_return_type_tag__` | collapsed; `api_bad_answer`/`api_bad_answer_format` → 12, `api_connection_error` → 13, `api_timeout` → 15, default → 12 |
 | 12 | Reply API Error | 0 | `api_rpc_reply` | collapsed; `error_type: api` → Error final `<Provider> API Error` |
 | 13 | Reply Connection Error | 0 | `api_rpc_reply` | collapsed; `error_type: connection` → Error final `<Provider> Unreachable` |
-| 15 | Reply Timeout | 3 | `api_rpc_reply` | collapsed; semaphore target; `error_type: timeout` → Error final `<Provider> Timeout` |
+| 15 | Reply Timeout | 3 | `api_rpc_reply` | collapsed; target of both the time semaphore AND node 11's `api_timeout` branch; `error_type: timeout` → Error final `<Provider> Timeout` |
 
 Code nodes 2 and 4 each get their own error cluster too: `err_node_id` → Reply (`obj_type: 3`,
 `error_type: validation` for node 2, `api` for node 4) → named Error final.

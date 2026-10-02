@@ -21,10 +21,11 @@ workspace the user is currently working in:
 
 If the project, the stage, the alias, or access to any of them is missing — this is an
 **expected outcome, not an error**: the user running this skill may simply have no access to
-the Smart API project. **Never block**:
+the Smart API project, or the project/stage/alias may have been renamed or removed since this
+doc was written. **Never block**, and don't guess which of the two it is:
 
-> The connector is ready and tested. Smart API was not registered: no access to <what is
-> missing>.
+> The connector is ready and tested. Smart API was not registered: <what is missing> was not
+> found (missing, renamed, or no access).
 
 Finish the skill normally.
 

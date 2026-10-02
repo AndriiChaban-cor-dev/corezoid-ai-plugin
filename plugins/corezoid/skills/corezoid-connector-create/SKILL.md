@@ -141,9 +141,10 @@ Error paths (each with its own Reply and a named Error final):
 | Failure | How it is caught | Reply |
 |---|---|---|
 | input invalid | Condition after validation | `error_type: validation` + `invalid_params` |
-| Target API answered non-2xx | `err_node_id` → Condition on `__conveyor_api_return_type_tag__` = `api_bad_answer` | `error_type: api` |
+| Target API answered non-2xx | `err_node_id` → Condition on `__conveyor_api_return_type_tag__` = `api_bad_answer` (also `api_bad_answer_format`) | `error_type: api` |
 | connection / DNS / TLS | same Condition, tag `api_connection_error` | `error_type: connection` |
-| no answer in time | time semaphore of the API Call (default 30 s) | `error_type: timeout` |
+| Target API call itself timed out (hardware) | same Condition, tag `api_timeout` — routes to the same Reply as the semaphore below | `error_type: timeout` |
+| no answer within the process-level wait | time semaphore of the API Call (default 30 s) | `error_type: timeout` |
 | anything else from the API Call | same Condition, default branch | `error_type: api` |
 
 Node rules — follow the **Core rules** of `/corezoid-create` (Step 4 there), especially:
@@ -197,10 +198,10 @@ Follow `references/test-rules.md`. In short:
 Follow `references/registration.md`. In short:
 
 1. Find the receiver in the current workspace by names: project short_name "smart-api" → its
-   stage "production" → alias "api-gw-create-smart-api" → the process it points to. Missing
-   or inaccessible project/stage/alias is an expected outcome, not an error — the user
-   running this skill may simply have no access to the Smart API project. Stop here and
-   finish: the connector is ready, Smart API was not registered (no access). Never block.
+   stage "production" → alias "api-gw-create-smart-api" → the process it points to. A missing
+   project/stage/alias is an expected outcome, not an error — the user may lack access, or
+   the resource may have been renamed/removed; don't guess which. Stop here and finish: the
+   connector is ready, Smart API was not registered (not found). Never block.
 2. `run-task` into the receiver process, exactly ONCE, with the task data in
    `references/registration.md`. Task ref = `conv_id` of the connector.
 3. Report whatever comes back, verbatim, and stop there: a successful Reply → show the user
