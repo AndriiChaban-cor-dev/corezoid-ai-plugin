@@ -1295,6 +1295,18 @@ func TestHandleToolCall_ListStages_MissingArg(t *testing.T) {
 	_ = result
 }
 
+func TestHandleToolCall_ListAliases_MissingArg(t *testing.T) {
+	resetGlobals(t)
+	result, isErr := handleToolCall(context.Background(), "list-aliases", map[string]interface{}{
+		"project_id": float64(1),
+		"stage_id":   float64(1),
+	})
+	if !isErr {
+		t.Error("expected isError=true when company_id missing")
+	}
+	_ = result
+}
+
 // ---- run-task argument validation ------------------------------------------
 
 func TestHandleToolCall_RunTask_BadFilename(t *testing.T) {

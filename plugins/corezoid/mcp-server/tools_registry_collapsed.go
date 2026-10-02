@@ -4,7 +4,7 @@ package main
 // domain router (tools_router.go). They are full definitions, unchanged: the
 // same descriptions, schemas and annotations they had as standalone entries.
 //
-// The difference is where that text is spent. These 54 definitions are 42 KB
+// The difference is where that text is spent. These 55 definitions are 42 KB
 // — two thirds of what tools/list used to cost every session — for operations
 // a typical session calls none of. Now tools/list carries a one-line summary
 // per action, and this file's text is served on demand: by help=true, by the
@@ -461,6 +461,33 @@ var collapsedToolRegistry = []mcpTool{
 				},
 			},
 			"required": []string{"project_id", "company_id"},
+		},
+	},
+	{
+		Name:        "list-aliases",
+		Description: "List the aliases (short_name -> target process) defined in a Corezoid project's stage. Pass short_name to filter to one exact match instead of scanning the full table — the common case when resolving a known alias (e.g. a Smart API receiver) to its conv_id.",
+		Annotations: toolHints(hintReadOnly, hintSafe, hintIdempotent, hintOpenWorld),
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"project_id": map[string]interface{}{
+					"type":        "integer",
+					"description": "Project ID the stage belongs to",
+				},
+				"stage_id": map[string]interface{}{
+					"type":        "integer",
+					"description": "Stage ID whose aliases to list",
+				},
+				"company_id": map[string]interface{}{
+					"type":        "string",
+					"description": "Workspace (company) ID the project belongs to",
+				},
+				"short_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Optional: return only the alias with this exact short_name",
+				},
+			},
+			"required": []string{"project_id", "stage_id", "company_id"},
 		},
 	},
 	{

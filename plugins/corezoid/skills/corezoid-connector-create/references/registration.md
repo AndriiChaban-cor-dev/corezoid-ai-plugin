@@ -10,12 +10,14 @@ resolved fresh every time.
 Nothing here is environment-specific or hardcoded — resolve all of it by name, in the
 workspace the user is currently working in:
 
-- **Project** — `short_name = "smart-api"` in the current workspace (`list-projects`).
-- **Stage** — `short_name = "production"` inside that project (`list-stages`) — always
-  production, regardless of which stage the connector itself is being built on.
-- **Alias** — `short_name = "api-gw-create-smart-api"` inside that stage (see
-  `/corezoid-alias-manager`).
-- **Receiver process** — the process the alias points to → its `conv_id`.
+- **Project** — `cz-structure` `list-projects`, match `short_name = "smart-api"`.
+- **Stage** — `cz-structure` `list-stages` inside that project, match `short_name =
+  "production"` — always production, regardless of which stage the connector itself is
+  being built on.
+- **Alias** — `cz-structure` `list-aliases` inside that project/stage with `short_name =
+  "api-gw-create-smart-api"` (see `/corezoid-alias-manager`) → its `obj_to_id` is the
+  receiver process.
+- **Receiver process** — the `obj_to_id` returned for that alias → its `conv_id`.
 
 If the project, the stage, the alias, or access to any of them is missing — **never block**:
 

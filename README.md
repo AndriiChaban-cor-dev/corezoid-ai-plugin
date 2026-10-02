@@ -347,6 +347,7 @@ Workspaces, projects, stages, folders, and moving objects between them.
 | `modify-project` | Update a project's title, short_name and/or description |
 | `delete-project` | Move a project to the recycle bin (Trash) |
 | `list-stages` | List stages in a workspace |
+| `list-aliases` | List aliases (short_name → target conv_id) in a project's stage; `short_name` filters to one exact match |
 | `set-stage-immutable` | Make a stage read-only (immutable) or editable; immutable stages are the only valid deploy targets; requires explicit confirm |
 | `list-folders` | List immediate children of a folder (no disk I/O) |
 | `show-folder` | Show folder metadata (title, kind, parent) |

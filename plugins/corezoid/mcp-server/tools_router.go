@@ -81,6 +81,7 @@ var toolRouters = []toolRouter{
 			{"modify-project", "rename a project / change short_name or description"},
 			{"delete-project", "move a project to Trash (destructive)"},
 			{"list-stages", "stages (environments) of a project"},
+			{"list-aliases", "aliases (short_name -> target conv_id) defined in a project's stage; short_name filters to one"},
 			{"set-stage-immutable", "set/clear a stage's immutable flag (needs confirm)"},
 			{"list-folders", "immediate children of a folder: subfolders, processes, state diagrams"},
 			{"show-folder", "one folder's metadata: title, obj_type, parent"},
