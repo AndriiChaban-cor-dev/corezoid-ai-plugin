@@ -38,6 +38,7 @@ var toolHandlers = map[string]toolHandler{
 	"create-state-diagram": handleCreateStateDiagram,
 	"create-folder":        handleCreateFolder,
 	"show-folder":          handleShowFolder,
+	"show-process":         handleShowProcess,
 	"list-folders":         handleListFolders,
 	"modify-folder":        handleModifyFolder,
 	"delete-folder":        handleDeleteFolder,

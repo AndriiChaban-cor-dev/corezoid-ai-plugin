@@ -197,12 +197,18 @@ Follow `references/test-rules.md`. In short:
 Follow `references/registration.md`. In short:
 
 1. Find the receiver in the current workspace by names: project short_name "smart-api" → its
-   stage "production" → alias "api-gw-create-smart-api" → the process it points to.
-2. If anything is not found or not accessible — warn the user and finish: the connector is
-   ready, Smart API is not registered. Never block.
-3. `run-task` into the receiver process (wait for Reply). Task ref = `conv_id` of the
-   connector.
-4. Show the user the Smart API actor id from the reply.
+   stage "production" → alias "api-gw-create-smart-api" → the process it points to. Missing
+   or inaccessible project/stage/alias is an expected outcome, not an error — the user
+   running this skill may simply have no access to the Smart API project. Stop here and
+   finish: the connector is ready, Smart API was not registered (no access). Never block.
+2. `run-task` into the receiver process, exactly ONCE, with the task data in
+   `references/registration.md`. Task ref = `conv_id` of the connector.
+3. Report whatever comes back, verbatim, and stop there: a successful Reply → show the user
+   the Smart API actor id; any error, rejection, timeout, or no answer → tell the user Smart
+   API was not registered and why, quoting the receiver's own error. **Never** retry, guess a
+   different payload and resend, or pull/inspect the receiver process or any of its
+   sub-processes to "fix" a rejection — that is debugging someone else's production system,
+   not this skill's job. One attempt, one honest report, done.
 
 ## Step 11: Report
 

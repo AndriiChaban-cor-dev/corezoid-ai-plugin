@@ -4,7 +4,7 @@ package main
 // domain router (tools_router.go). They are full definitions, unchanged: the
 // same descriptions, schemas and annotations they had as standalone entries.
 //
-// The difference is where that text is spent. These 55 definitions are 42 KB
+// The difference is where that text is spent. These 56 definitions are 42 KB
 // — two thirds of what tools/list used to cost every session — for operations
 // a typical session calls none of. Now tools/list carries a one-line summary
 // per action, and this file's text is served on demand: by help=true, by the
@@ -553,6 +553,21 @@ var collapsedToolRegistry = []mcpTool{
 				},
 			},
 			"required": []string{"folder_id"},
+		},
+	},
+	{
+		Name:        "show-process",
+		Description: "Show a Corezoid process's own metadata (title, description, status, conv_type, owner_id/owner_login, project_id, stage_id, immutable) without exporting its scheme. Lighter than pull-process for an ownership/location lookup.",
+		Annotations: toolHints(hintReadOnly, hintSafe, hintIdempotent, hintOpenWorld),
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"process_id": map[string]interface{}{
+					"type":        "integer",
+					"description": "Corezoid process (conv) ID to show",
+				},
+			},
+			"required": []string{"process_id"},
 		},
 	},
 	{

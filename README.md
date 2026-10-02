@@ -351,6 +351,7 @@ Workspaces, projects, stages, folders, and moving objects between them.
 | `set-stage-immutable` | Make a stage read-only (immutable) or editable; immutable stages are the only valid deploy targets; requires explicit confirm |
 | `list-folders` | List immediate children of a folder (no disk I/O) |
 | `show-folder` | Show folder metadata (title, kind, parent) |
+| `show-process` | Show a process's own metadata (title, status, owner_id/owner_login, project_id/stage_id) without exporting its scheme |
 | `create-folder` | Create a new subfolder |
 | `modify-folder` | Rename a folder or update its description |
 | `delete-folder` | Move a folder to the recycle bin |

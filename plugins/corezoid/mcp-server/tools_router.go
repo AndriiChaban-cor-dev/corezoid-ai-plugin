@@ -85,6 +85,7 @@ var toolRouters = []toolRouter{
 			{"set-stage-immutable", "set/clear a stage's immutable flag (needs confirm)"},
 			{"list-folders", "immediate children of a folder: subfolders, processes, state diagrams"},
 			{"show-folder", "one folder's metadata: title, obj_type, parent"},
+			{"show-process", "one process's metadata: title, status, owner_id/owner_login, project_id/stage_id"},
 			{"create-folder", "create a folder inside a parent folder"},
 			{"modify-folder", "rename a folder / change its description"},
 			{"delete-folder", "move a folder to Trash (destructive)"},

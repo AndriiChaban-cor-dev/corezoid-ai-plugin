@@ -120,10 +120,10 @@ public/
 
 ### MCP tool shape: core tools + domain routers
 
-`tools/list` advertises 18 core tools (`push-process`, `pull-process`, `lint-process`, `run-task`, `login`, …) plus seven **router tools** — `cz-access`, `cz-structure`, `cz-tasks`, `cz-dashboards`, `cz-variables`, `cz-snapshots`, `cz-git-context` — that front the 55 CRUD-shaped tools, called as `cz-access {"action": "share-object", "args": {…}}`. This exists because the list ships as one line on stdio against a 64 KiB budget and costs context in every session; collapsing the CRUD domains took it from 65 400 to 36 200 bytes.
+`tools/list` advertises 18 core tools (`push-process`, `pull-process`, `lint-process`, `run-task`, `login`, …) plus seven **router tools** — `cz-access`, `cz-structure`, `cz-tasks`, `cz-dashboards`, `cz-variables`, `cz-snapshots`, `cz-git-context` — that front the 56 CRUD-shaped tools, called as `cz-access {"action": "share-object", "args": {…}}`. This exists because the list ships as one line on stdio against a 64 KiB budget and costs context in every session; collapsing the CRUD domains took it from 65 400 to 36 300 bytes.
 
 - `plugins/corezoid/mcp-server/tools_registry.go` — `coreToolDefs` (advertised individually) and the registry builder.
-- `plugins/corezoid/mcp-server/tools_registry_collapsed.go` — the 55 router-fronted definitions, unchanged in content.
+- `plugins/corezoid/mcp-server/tools_registry_collapsed.go` — the 56 router-fronted definitions, unchanged in content.
 - `plugins/corezoid/mcp-server/tools_router.go` — the routers, the action lists, `resolveRouterCall`, and the `help`/error text that serves an action's schema on demand.
 
 Rules the tests enforce: every collapsed tool is reachable through exactly one action and has a handler; a tool is either advertised or collapsed, never both; routers never appear in `noAuthTools`/`tokenOnlyTools` (gating happens on the resolved action); every advertised entry stays under 4 KB (`push-process` exempt); and every name — tool, router and action — appears in the README tools section.
